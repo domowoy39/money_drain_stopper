@@ -1,4 +1,3 @@
-$ cat > ~/skript.js << 'ENDOFFILE'
 const tg = window.Telegram.WebApp;
 tg.expand();
 
@@ -39,10 +38,10 @@ function setupMainButton() {
         tg.MainButton.offClick(tg.MainButton._clickHandler);
     }
     if (currentTab === 'subs') {
-        tg.MainButton.setText("ДОБАВИТЬ ПОДПИСКУ");
+        tg.MainButton.setText('ДОБАВИТЬ ПОДПИСКУ');
         tg.MainButton._clickHandler = function() { openModal(); };
     } else {
-        tg.MainButton.setText("ДОБАВИТЬ РАСХОДНИК");
+        tg.MainButton.setText('ДОБАВИТЬ РАСХОДНИК');
         tg.MainButton._clickHandler = function() { openConsModal(); };
     }
     tg.MainButton.onClick(tg.MainButton._clickHandler);
@@ -56,26 +55,23 @@ function openModal() {
     document.getElementById('add-modal').classList.remove('hidden');
     tg.MainButton.hide();
 }
-
 function closeModal() {
     document.getElementById('add-modal').classList.add('hidden');
     tg.MainButton.show();
 }
-
 function saveSubscription() {
     var name = document.getElementById('sub-name').value.trim();
     var cost = parseInt(document.getElementById('sub-cost').value);
     var date = document.getElementById('sub-date').value;
-    if (!name || isNaN(cost) || !date) { tg.showAlert("Заполните все поля"); return; }
+    if (!name || isNaN(cost) || !date) { tg.showAlert('Заполните все поля'); return; }
     subscriptions.push({ id: Date.now(), name: name, cost: cost, date: date });
     tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
     closeModal();
     renderSubs();
     tg.HapticFeedback.notificationOccurred('success');
 }
-
 function deleteSub(id) {
-    tg.showConfirm("Удалить подписку?", function(ok) {
+    tg.showConfirm('Удалить подписку?', function(ok) {
         if (!ok) return;
         subscriptions = subscriptions.filter(function(s) { return s.id !== id; });
         tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
@@ -83,14 +79,13 @@ function deleteSub(id) {
         tg.HapticFeedback.impactOccurred('medium');
     });
 }
-
 function renderSubs() {
     var list    = document.getElementById('subscriptions-list');
     var totalEl = document.getElementById('total-cost');
     var emptyEl = document.getElementById('empty-msg');
     list.innerHTML = '';
     var total = subscriptions.reduce(function(s, x) { return s + x.cost; }, 0);
-    totalEl.innerText = formatMoney(total) + ' ₽';
+    totalEl.innerText = formatMoney(total) + ' \u20bd';
     if (subscriptions.length === 0) {
         list.appendChild(emptyEl);
         emptyEl.style.display = 'block';
@@ -100,11 +95,13 @@ function renderSubs() {
     var sorted = subscriptions.slice().sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
     sorted.forEach(function(sub) {
         var d = getDaysLeft(sub.date);
-        var badge;
-        if (d < 0)       badge = '<span class="badge overdue">Просрочено</span>';
-        else if (d === 0) badge = '<span class="badge today">Сегодня</span>';
-        else if (d <= 3)  badge = '<span class="badge soon">Через ' + d + ' дн.</span>';
-        else              badge = '<span class="badge normal">Через ' + d + ' дн.</span>';
+        var badge = d < 0
+            ? '<span class="badge overdue">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043e</span>'
+            : d === 0
+            ? '<span class="badge today">\u0421\u0435\u0433\u043e\u0434\u043d\u044f</span>'
+            : d <= 3
+            ? '<span class="badge soon">\u0427\u0435\u0440\u0435\u0437 ' + d + ' \u0434\u043d.</span>'
+            : '<span class="badge normal">\u0427\u0435\u0440\u0435\u0437 ' + d + ' \u0434\u043d.</span>';
         var card = document.createElement('div');
         card.className = 'sub-card';
         card.innerHTML =
@@ -113,8 +110,8 @@ function renderSubs() {
                 '<div class="sub-meta">' + badge + ' ' + formatDate(sub.date) + '</div>' +
             '</div>' +
             '<div class="sub-right">' +
-                '<div class="sub-cost">' + formatMoney(sub.cost) + ' ₽</div>' +
-                '<button class="delete-btn" onclick="deleteSub(' + sub.id + ')">🗑</button>' +
+                '<div class="sub-cost">' + formatMoney(sub.cost) + ' \u20bd</div>' +
+                '<button class="delete-btn" onclick="deleteSub(' + sub.id + ')">\uD83D\uDDD1</button>' +
             '</div>';
         list.appendChild(card);
     });
@@ -128,33 +125,29 @@ function openConsModal() {
     document.getElementById('add-cons-modal').classList.remove('hidden');
     tg.MainButton.hide();
 }
-
 function closeConsModal() {
     document.getElementById('add-cons-modal').classList.add('hidden');
     tg.MainButton.show();
 }
-
 function setDays(n) {
     document.getElementById('cons-days').value = n;
     document.querySelectorAll('.preset-btn').forEach(function(b) {
         b.classList.toggle('selected', parseInt(b.textContent) === n);
     });
 }
-
 function saveConsumable() {
     var name      = document.getElementById('cons-name').value.trim();
     var days      = parseInt(document.getElementById('cons-days').value);
     var startDate = document.getElementById('cons-start-date').value;
-    if (!name || isNaN(days) || !startDate) { tg.showAlert("Заполните все поля"); return; }
+    if (!name || isNaN(days) || !startDate) { tg.showAlert('Заполните все поля'); return; }
     consumables.push({ id: Date.now(), name: name, days: days, startDate: startDate });
     tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
     closeConsModal();
     renderConsumables();
     tg.HapticFeedback.notificationOccurred('success');
 }
-
 function deleteCons(id) {
-    tg.showConfirm("Удалить расходник?", function(ok) {
+    tg.showConfirm('Удалить расходник?', function(ok) {
         if (!ok) return;
         consumables = consumables.filter(function(c) { return c.id !== id; });
         tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
@@ -162,7 +155,6 @@ function deleteCons(id) {
         tg.HapticFeedback.impactOccurred('medium');
     });
 }
-
 function refreshCons(id) {
     var c = consumables.find(function(c) { return c.id === id; });
     if (!c) return;
@@ -171,14 +163,13 @@ function refreshCons(id) {
     renderConsumables();
     tg.HapticFeedback.notificationOccurred('success');
 }
-
 function renderConsumables() {
     var list    = document.getElementById('consumables-list');
     var countEl = document.getElementById('consumables-count');
     var emptyEl = document.getElementById('empty-cons-msg');
     list.innerHTML = '';
     var active = consumables.filter(function(c) { return getConsDaysLeft(c) >= 0; }).length;
-    countEl.innerText = active + ' активных';
+    countEl.innerText = active + ' \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445';
     if (consumables.length === 0) {
         list.appendChild(emptyEl);
         emptyEl.style.display = 'block';
@@ -190,14 +181,15 @@ function renderConsumables() {
         var dLeft    = getConsDaysLeft(c);
         var pct      = Math.max(0, Math.min(100, Math.round((dLeft / c.days) * 100)));
         var barColor = dLeft < 0 ? '#ff3b30' : dLeft <= 3 ? '#ff9500' : '#34c759';
-        var badge;
-        if (dLeft < 0)        badge = '<span class="badge overdue">Просрочено</span>';
-        else if (dLeft === 0)  badge = '<span class="badge today">Сегодня</span>';
-        else if (dLeft <= 3)   badge = '<span class="badge soon">Осталось ' + dLeft + ' дн.</span>';
-        else                   badge = '<span class="badge normal">Осталось ' + dLeft + ' дн.</span>';
+        var badge = dLeft < 0
+            ? '<span class="badge overdue">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043e</span>'
+            : dLeft === 0
+            ? '<span class="badge today">\u0421\u0435\u0433\u043e\u0434\u043d\u044f</span>'
+            : dLeft <= 3
+            ? '<span class="badge soon">\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + dLeft + ' \u0434\u043d.</span>'
+            : '<span class="badge normal">\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + dLeft + ' \u0434\u043d.</span>';
         var endDate = new Date(c.startDate);
         endDate.setDate(endDate.getDate() + c.days);
-        var endStr = endDate.toISOString().split('T')[0];
         var card = document.createElement('div');
         card.className = 'sub-card';
         card.style.flexDirection = 'column';
@@ -206,12 +198,12 @@ function renderConsumables() {
             '<div style="display:flex;justify-content:space-between;align-items:center">' +
                 '<div class="sub-info">' +
                     '<div class="sub-name">' + c.name + '</div>' +
-                    '<div class="sub-meta">' + badge + ' до ' + formatDate(endStr) + '</div>' +
+                    '<div class="sub-meta">' + badge + ' \u0434\u043e ' + formatDate(endDate.toISOString().split('T')[0]) + '</div>' +
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:4px">' +
-                    '<div style="font-size:13px;color:var(--text-secondary);text-align:right">' + c.days + ' дн.<br><span style="font-size:11px">' + pct + '%</span></div>' +
-                    '<button class="refresh-btn" onclick="refreshCons(' + c.id + ')" title="Использовал сегодня">♻️</button>' +
-                    '<button class="delete-btn" onclick="deleteCons(' + c.id + ')">🗑</button>' +
+                    '<div style="font-size:13px;color:var(--text-secondary);text-align:right">' + c.days + ' \u0434\u043d.<br><span style="font-size:11px">' + pct + '%</span></div>' +
+                    '<button class="refresh-btn" onclick="refreshCons(' + c.id + ')" title="\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043b \u0441\u0435\u0433\u043e\u0434\u043d\u044f">\u267b\uFE0F</button>' +
+                    '<button class="delete-btn" onclick="deleteCons(' + c.id + ')">\uD83D\uDDD1</button>' +
                 '</div>' +
             '</div>' +
             '<div class="cons-progress-wrap">' +
@@ -241,30 +233,28 @@ function checkAndNotify() {
             var nid = 'sub_' + s.id + '_' + todayStr;
             if (notified[nid]) return;
             var d = getDaysLeft(s.date);
-            if (d < 0)        subOverdue.push(s);
+            if      (d < 0)  subOverdue.push(s);
             else if (d === 0) subUrgent.push(s);
             else if (d === 1) subSoon1.push(s);
             else if (d === 3) subSoon3.push(s);
         });
-
-        if (subOverdue.length) messages.push('🔴 Просроченные подписки:\n' + subOverdue.map(function(s) { return '• ' + s.name + ' — ' + s.cost + ' ₽'; }).join('\n'));
-        if (subUrgent.length)  messages.push('⚡️ Сегодня списание:\n'       + subUrgent.map(function(s) { return '• ' + s.name + ' — ' + s.cost + ' ₽'; }).join('\n'));
-        if (subSoon1.length)   messages.push('⏰ Завтра списание:\n'         + subSoon1.map(function(s) { return '• ' + s.name + ' — ' + s.cost + ' ₽'; }).join('\n'));
-        if (subSoon3.length)   messages.push('📅 Через 3 дня списание:\n'   + subSoon3.map(function(s) { return '• ' + s.name + ' — ' + s.cost + ' ₽'; }).join('\n'));
+        if (subOverdue.length) messages.push('\uD83D\uDD34 \u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043d\u044b\u0435 \u043f\u043e\u0434\u043f\u0438\u0441\u043a\u0438:\n' + subOverdue.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
+        if (subUrgent.length)  messages.push('\u26A1\uFE0F \u0421\u0435\u0433\u043e\u0434\u043d\u044f \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subUrgent.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
+        if (subSoon1.length)   messages.push('\u23F0 \u0417\u0430\u0432\u0442\u0440\u0430 \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subSoon1.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
+        if (subSoon3.length)   messages.push('\uD83D\uDCC5 \u0427\u0435\u0440\u0435\u0437 3 \u0434\u043d\u044f \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subSoon3.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
 
         var consOverdue = [], consUrgent = [], consSoon = [];
         consumables.forEach(function(c) {
             var nid = 'cons_' + c.id + '_' + todayStr;
             if (notified[nid]) return;
             var d = getConsDaysLeft(c);
-            if (d < 0)        consOverdue.push(c);
+            if      (d < 0)  consOverdue.push(c);
             else if (d === 0) consUrgent.push(c);
             else if (d <= 3)  consSoon.push(c);
         });
-
-        if (consOverdue.length) messages.push('🔴 Расходники закончились:\n'          + consOverdue.map(function(c) { return '• ' + c.name; }).join('\n'));
-        if (consUrgent.length)  messages.push('⚡️ Расходники заканчиваются сегодня:\n' + consUrgent.map(function(c) { return '• ' + c.name; }).join('\n'));
-        if (consSoon.length)    messages.push('📦 Скоро закончатся (до 3 дн.):\n'      + consSoon.map(function(c) { return '• ' + c.name + ' — осталось ' + getConsDaysLeft(c) + ' дн.'; }).join('\n'));
+        if (consOverdue.length) messages.push('\uD83D\uDD34 \u0420\u0430\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u0438 \u0437\u0430\u043a\u043e\u043d\u0447\u0438\u043b\u0438\u0441\u044c:\n' + consOverdue.map(function(c){ return '\u2022 ' + c.name; }).join('\n'));
+        if (consUrgent.length)  messages.push('\u26A1\uFE0F \u0417\u0430\u043a\u0430\u043d\u0447\u0438\u0432\u0430\u044e\u0442\u0441\u044f \u0441\u0435\u0433\u043e\u0434\u043d\u044f:\n' + consUrgent.map(function(c){ return '\u2022 ' + c.name; }).join('\n'));
+        if (consSoon.length)    messages.push('\uD83D\uDCE6 \u0421\u043a\u043e\u0440\u043e \u0437\u0430\u043a\u043e\u043d\u0447\u0430\u0442\u0441\u044f:\n' + consSoon.map(function(c){ return '\u2022 ' + c.name + ' \u2014 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + getConsDaysLeft(c) + ' \u0434\u043d.'; }).join('\n'));
 
         if (messages.length === 0) return;
 
@@ -295,15 +285,9 @@ function getDaysLeft(dateStr) {
     var target = new Date(dateStr); target.setHours(0,0,0,0);
     return Math.round((target - today) / 86400000);
 }
-
 function formatDate(dateStr) {
     return new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
-
-function formatMoney(n) {
-    return n.toLocaleString('ru-RU');
-}
+function formatMoney(n) { return n.toLocaleString('ru-RU'); }
 
 init();
-ENDOFFILE
-echo "Lines: $(wc -l < ~/skript.js)"
