@@ -1,212 +1,240 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-const STORAGE_KEY = 'user_subscriptions_v1';
-const NOTIFIED_KEY = 'notified_dates_v1';
+const STORAGE_KEY   = 'user_subscriptions_v1';
+const CONS_KEY      = 'user_consumables_v1';
+const NOTIFIED_KEY  = 'notified_dates_v1';
 
 let subscriptions = [];
+let consumables   = [];
+let currentTab    = 'subs';
 
+// ── INIT ──────────────────────────────────────────────
 async function init() {
     setupMainButton();
-    tg.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
-        document.getElementById('loader').classList.add('hidden');
-        document.getElementById('main-app').classList.remove('hidden');
-        if (!err && value) {
-            subscriptions = JSON.parse(value);
-            renderList();
+
+    tg.CloudStorage.getItem(STORAGE_KEY, (err, val) => {
+        if (!err && val) subscriptions = JSON.parse(val);
+
+        tg.CloudStorage.getItem(CONS_KEY, (err2, val2) => {
+            if (!err2 && val2) consumables = JSON.parse(val2);
+
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+
+            renderSubs();
+            renderConsumables();
             checkAndNotify();
-        } else {
-            renderList();
-        }
-    });
-}
-
-function checkAndNotify() {
-    if (subscriptions.length === 0) return;
-
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    tg.CloudStorage.getItem(NOTIFIED_KEY, (err, value) => {
-        const notified = (!err && value) ? JSON.parse(value) : {};
-
-        const urgent = [];
-        const soonOne = [];
-        const soonThree = [];
-        const overdue = [];
-
-        subscriptions.forEach(sub => {
-            const daysLeft = getDaysLeft(sub.date);
-            const notifyId = `${sub.id}_${todayStr}`;
-            if (notified[notifyId]) return;
-
-            if (daysLeft < 0) overdue.push(sub);
-            else if (daysLeft === 0) urgent.push(sub);
-            else if (daysLeft === 1) soonOne.push(sub);
-            else if (daysLeft === 3) soonThree.push(sub);
-        });
-
-        const messages = [];
-
-        if (overdue.length > 0) {
-            const names = overdue.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
-            messages.push(`🔴 Просроченные подписки:\n${names}\nОбновите даты списания!`);
-        }
-        if (urgent.length > 0) {
-            const names = urgent.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
-            messages.push(`⚡️ Сегодня списание:\n${names}`);
-        }
-        if (soonOne.length > 0) {
-            const names = soonOne.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
-            messages.push(`⏰ Завтра списание:\n${names}`);
-        }
-        if (soonThree.length > 0) {
-            const names = soonThree.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
-            messages.push(`📅 Через 3 дня списание:\n${names}`);
-        }
-
-        if (messages.length === 0) return;
-
-        showNextAlert(messages, 0, () => {
-            const allShown = [...overdue, ...urgent, ...soonOne, ...soonThree];
-            allShown.forEach(sub => {
-                notified[`${sub.id}_${todayStr}`] = true;
-            });
-            const cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - 7);
-            Object.keys(notified).forEach(key => {
-                const dateStr = key.split('_').pop();
-                if (new Date(dateStr) < cutoff) delete notified[key];
-            });
-            tg.CloudStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
         });
     });
 }
 
-function showNextAlert(messages, index, onDone) {
-    if (index >= messages.length) { onDone(); return; }
-    tg.showAlert(messages[index], () => {
-        showNextAlert(messages, index + 1, onDone);
-    });
+// ── ВКЛАДКИ ───────────────────────────────────────────
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+
+    document.getElementById('tab-subs').classList.toggle('hidden', tab !== 'subs');
+    document.getElementById('tab-consumables').classList.toggle('hidden', tab !== 'consumables');
+
+    setupMainButton();
 }
 
+// ── MAIN BUTTON ───────────────────────────────────────
 function setupMainButton() {
-    tg.MainButton.setText("ДОБАВИТЬ ПОДПИСКУ");
+    tg.MainButton.offClick(tg.MainButton._clickHandler);
+    if (currentTab === 'subs') {
+        tg.MainButton.setText("ДОБАВИТЬ ПОДПИСКУ");
+        tg.MainButton._clickHandler = () => openModal();
+    } else {
+        tg.MainButton.setText("ДОБАВИТЬ РАСХОДНИК");
+        tg.MainButton._clickHandler = () => openConsModal();
+    }
+    tg.MainButton.onClick(tg.MainButton._clickHandler);
     tg.MainButton.show();
-    tg.MainButton.onClick(() => { openModal(); });
 }
 
+// ── ПОДПИСКИ ──────────────────────────────────────────
 function openModal() {
     document.getElementById('sub-name').value = '';
     document.getElementById('sub-cost').value = '';
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('sub-date').value = today;
+    document.getElementById('sub-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('add-modal').classList.remove('hidden');
     tg.MainButton.hide();
 }
-
 function closeModal() {
     document.getElementById('add-modal').classList.add('hidden');
     tg.MainButton.show();
 }
-
 function saveSubscription() {
     const name = document.getElementById('sub-name').value.trim();
     const cost = parseInt(document.getElementById('sub-cost').value);
-    const dateStr = document.getElementById('sub-date').value;
-
-    if (!name || isNaN(cost) || !dateStr) {
-        tg.showAlert("Пожалуйста, заполните все поля");
-        return;
-    }
-
-    const newSub = { id: Date.now(), name, cost, date: dateStr };
-    subscriptions.push(newSub);
-    saveData();
+    const date = document.getElementById('sub-date').value;
+    if (!name || isNaN(cost) || !date) { tg.showAlert("Заполните все поля"); return; }
+    subscriptions.push({ id: Date.now(), name, cost, date });
+    tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
     closeModal();
-    renderList();
+    renderSubs();
     tg.HapticFeedback.notificationOccurred('success');
 }
-
 function deleteSub(id) {
-    tg.showConfirm("Удалить эту подписку?", (ok) => {
-        if (ok) {
-            subscriptions = subscriptions.filter(s => s.id !== id);
-            saveData();
-            renderList();
-            tg.HapticFeedback.impactOccurred('medium');
-        }
+    tg.showConfirm("Удалить подписку?", ok => {
+        if (!ok) return;
+        subscriptions = subscriptions.filter(s => s.id !== id);
+        tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
+        renderSubs();
+        tg.HapticFeedback.impactOccurred('medium');
     });
 }
-
-function saveData() {
-    tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
-}
-
-function renderList() {
-    const list = document.getElementById('subscriptions-list');
+function renderSubs() {
+    const list    = document.getElementById('subscriptions-list');
     const totalEl = document.getElementById('total-cost');
-    const emptyMsg = document.getElementById('empty-msg');
-
+    const emptyEl = document.getElementById('empty-msg');
     list.innerHTML = '';
-
-    const total = subscriptions.reduce((sum, sub) => sum + sub.cost, 0);
-    totalEl.innerText = formatMoney(total) + ' ₽';
-
-    if (subscriptions.length === 0) {
-        list.appendChild(emptyMsg);
-        emptyMsg.style.display = 'block';
-        return;
-    } else {
-        emptyMsg.style.display = 'none';
-    }
-
-    subscriptions.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    subscriptions.forEach(sub => {
-        const daysLeft = getDaysLeft(sub.date);
-        let statusBadge = '';
-
-        if (daysLeft < 0) {
-            statusBadge = `<span class="badge overdue">Просрочено</span>`;
-        } else if (daysLeft === 0) {
-            statusBadge = `<span class="badge today">Сегодня</span>`;
-        } else if (daysLeft <= 3) {
-            statusBadge = `<span class="badge soon">Через ${daysLeft} дн.</span>`;
-        } else {
-            statusBadge = `<span class="badge normal">Через ${daysLeft} дн.</span>`;
-        }
-
+    totalEl.innerText = formatMoney(subscriptions.reduce((s, x) => s + x.cost, 0)) + ' ₽';
+    if (subscriptions.length === 0) { list.appendChild(emptyEl); emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+    [...subscriptions].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(sub => {
+        const d = getDaysLeft(sub.date);
+        const badge = d < 0 ? `<span class="badge overdue">Просрочено</span>`
+                    : d === 0 ? `<span class="badge today">Сегодня</span>`
+                    : d <= 3  ? `<span class="badge soon">Через ${d} дн.</span>`
+                    : `<span class="badge normal">Через ${d} дн.</span>`;
         const card = document.createElement('div');
         card.className = 'sub-card';
         card.innerHTML = `
             <div class="sub-info">
                 <div class="sub-name">${sub.name}</div>
-                <div class="sub-meta">${statusBadge} ${formatDate(sub.date)}</div>
+                <div class="sub-meta">${badge} ${formatDate(sub.date)}</div>
             </div>
             <div class="sub-right">
                 <div class="sub-cost">${formatMoney(sub.cost)} ₽</div>
                 <button class="delete-btn" onclick="deleteSub(${sub.id})">🗑</button>
-            </div>
-        `;
+            </div>`;
         list.appendChild(card);
     });
 }
 
-function getDaysLeft(dateStr) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(dateStr);
-    target.setHours(0, 0, 0, 0);
-    return Math.round((target - today) / (1000 * 60 * 60 * 24));
+// ── РАСХОДНИКИ ────────────────────────────────────────
+function openConsModal() {
+    document.getElementById('cons-name').value = '';
+    document.getElementById('cons-days').value = '';
+    document.getElementById('cons-start-date').value = new Date().toISOString().split('T')[0];
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('add-cons-modal').classList.remove('hidden');
+    tg.MainButton.hide();
+}
+function closeConsModal() {
+    document.getElementById('add-cons-modal').classList.add('hidden');
+    tg.MainButton.show();
+}
+function setDays(n) {
+    document.getElementById('cons-days').value = n;
+    document.querySelectorAll('.preset-btn').forEach(b => {
+        b.classList.toggle('selected', parseInt(b.textContent) === n);
+    });
+}
+function saveConsumable() {
+    const name      = document.getElementById('cons-name').value.trim();
+    const days      = parseInt(document.getElementById('cons-days').value);
+    const startDate = document.getElementById('cons-start-date').value;
+    if (!name || isNaN(days) || !startDate) { tg.showAlert("Заполните все поля"); return; }
+    consumables.push({ id: Date.now(), name, days, startDate });
+    tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
+    closeConsModal();
+    renderConsumables();
+    tg.HapticFeedback.notificationOccurred('success');
+}
+function deleteCons(id) {
+    tg.showConfirm("Удалить расходник?", ok => {
+        if (!ok) return;
+        consumables = consumables.filter(c => c.id !== id);
+        tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
+        renderConsumables();
+        tg.HapticFeedback.impactOccurred('medium');
+    });
+}
+// Обновить дату — нажата кнопка ♻️, фиксируем "использовал сегодня"
+function refreshCons(id) {
+    const c = consumables.find(c => c.id === id);
+    if (!c) return;
+    c.startDate = new Date().toISOString().split('T')[0];
+    tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
+    renderConsumables();
+    tg.HapticFeedback.notificationOccurred('success');
+}
+function renderConsumables() {
+    const list    = document.getElementById('consumables-list');
+    const countEl = document.getElementById('consumables-count');
+    const emptyEl = document.getElementById('empty-cons-msg');
+    list.innerHTML = '';
+
+    const active = consumables.filter(c => getConsDaysLeft(c) >= 0).length;
+    countEl.innerText = active + ' активных';
+
+    if (consumables.length === 0) { list.appendChild(emptyEl); emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+
+    [...consumables].sort((a, b) => getConsDaysLeft(a) - getConsDaysLeft(b)).forEach(c => {
+        const dLeft   = getConsDaysLeft(c);
+        const pct     = Math.max(0, Math.min(100, Math.round((dLeft / c.days) * 100)));
+        const barColor = dLeft < 0 ? '#ff3b30' : dLeft <= 3 ? '#ff9500' : '#34c759';
+
+        const badge = dLeft < 0  ? `<span class="badge overdue">Просрочено</span>`
+                    : dLeft === 0 ? `<span class="badge today">Сегодня</span>`
+                    : dLeft <= 3  ? `<span class="badge soon">Осталось ${dLeft} дн.</span>`
+                    : `<span class="badge normal">Осталось ${dLeft} дн.</span>`;
+
+        const endDate = new Date(c.startDate);
+        endDate.setDate(endDate.getDate() + c.days);
+
+        const card = document.createElement('div');
+        card.className = 'sub-card';
+        card.style.flexDirection = 'column';
+        card.style.alignItems = 'stretch';
+        card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div class="sub-info">
+                    <div class="sub-name">${c.name}</div>
+                    <div class="sub-meta">${badge} до ${formatDate(endDate.toISOString().split('T')[0])}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px">
+                    <div style="font-size:13px;color:var(--text-secondary);text-align:right">${c.days} дн.<br><span style="font-size:11px">${pct}%</span></div>
+                    <button class="refresh-btn" onclick="refreshCons(${c.id})" title="Использовал сегодня">♻️</button>
+                    <button class="delete-btn" onclick="deleteCons(${c.id})">🗑</button>
+                </div>
+            </div>
+            <div class="cons-progress-wrap">
+                <div class="cons-progress-bar" style="width:${pct}%;background:${barColor}"></div>
+            </div>`;
+        list.appendChild(card);
+    });
 }
 
-function formatDate(dateStr) {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+// Сколько дней осталось до конца срока расходника
+function getConsDaysLeft(c) {
+    const end = new Date(c.startDate);
+    end.setDate(end.getDate() + c.days);
+    end.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0,0,0,0);
+    return Math.round((end - today) / 86400000);
 }
 
-function formatMoney(amount) {
-    return amount.toLocaleString('ru-RU');
-}
+// ── УВЕДОМЛЕНИЯ ───────────────────────────────────────
+function checkAndNotify() {
+    const todayStr = new Date().toISOString().split('T')[0];
+    tg.CloudStorage.getItem(NOTIFIED_KEY, (err, val) => {
+        const notified = (!err && val) ? JSON.parse(val) : {};
+        const messages = [];
 
-init();
+        // Подписки
+        const subOverdue = [], subUrgent = [], subSoon1 = [], subSoon3 = [];
+        subscriptions.forEach(s => {
+            const nid = `sub_${s.id}_${todayStr}`;
+            if (notified[nid]) return;
+            const d = getDaysLeft(s.date);
+            if      (d < 0)  subOverdue.push(s);
+            else if (d === 0) subUrgent.push(s);
+            else if (d === 1) subSoon1.push(s);
+            else if (d ==
