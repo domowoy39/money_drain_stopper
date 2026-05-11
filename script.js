@@ -1,53 +1,106 @@
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-// Ключ для облачного хранилища
 const STORAGE_KEY = 'user_subscriptions_v1';
+const NOTIFIED_KEY = 'notified_dates_v1';
 
-// Состояние
 let subscriptions = [];
 
-// Инициализация
 async function init() {
-    // Настраиваем главную кнопку как "Добавить"
     setupMainButton();
-
-    // Загружаем данные
     tg.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
         document.getElementById('loader').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
-
         if (!err && value) {
             subscriptions = JSON.parse(value);
             renderList();
+            checkAndNotify();
         } else {
-            renderList(); // Отрисует пустой список
+            renderList();
         }
     });
 }
 
-// Настройка MainButton (синяя кнопка внизу)
-function setupMainButton() {
-    tg.MainButton.setText("ДОБАВИТЬ ПОДПИСКУ");
-    tg.MainButton.show();
-    tg.MainButton.onClick(() => {
-        openModal();
+function checkAndNotify() {
+    if (subscriptions.length === 0) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    tg.CloudStorage.getItem(NOTIFIED_KEY, (err, value) => {
+        const notified = (!err && value) ? JSON.parse(value) : {};
+
+        const urgent = [];
+        const soonOne = [];
+        const soonThree = [];
+        const overdue = [];
+
+        subscriptions.forEach(sub => {
+            const daysLeft = getDaysLeft(sub.date);
+            const notifyId = `${sub.id}_${todayStr}`;
+            if (notified[notifyId]) return;
+
+            if (daysLeft < 0) overdue.push(sub);
+            else if (daysLeft === 0) urgent.push(sub);
+            else if (daysLeft === 1) soonOne.push(sub);
+            else if (daysLeft === 3) soonThree.push(sub);
+        });
+
+        const messages = [];
+
+        if (overdue.length > 0) {
+            const names = overdue.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
+            messages.push(`🔴 Просроченные подписки:\n${names}\nОбновите даты списания!`);
+        }
+        if (urgent.length > 0) {
+            const names = urgent.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
+            messages.push(`⚡️ Сегодня списание:\n${names}`);
+        }
+        if (soonOne.length > 0) {
+            const names = soonOne.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
+            messages.push(`⏰ Завтра списание:\n${names}`);
+        }
+        if (soonThree.length > 0) {
+            const names = soonThree.map(s => `• ${s.name} — ${s.cost} ₽`).join('\n');
+            messages.push(`📅 Через 3 дня списание:\n${names}`);
+        }
+
+        if (messages.length === 0) return;
+
+        showNextAlert(messages, 0, () => {
+            const allShown = [...overdue, ...urgent, ...soonOne, ...soonThree];
+            allShown.forEach(sub => {
+                notified[`${sub.id}_${todayStr}`] = true;
+            });
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 7);
+            Object.keys(notified).forEach(key => {
+                const dateStr = key.split('_').pop();
+                if (new Date(dateStr) < cutoff) delete notified[key];
+            });
+            tg.CloudStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+        });
     });
 }
 
-// Открытие/Закрытие модального окна
+function showNextAlert(messages, index, onDone) {
+    if (index >= messages.length) { onDone(); return; }
+    tg.showAlert(messages[index], () => {
+        showNextAlert(messages, index + 1, onDone);
+    });
+}
+
+function setupMainButton() {
+    tg.MainButton.setText("ДОБАВИТЬ ПОДПИСКУ");
+    tg.MainButton.show();
+    tg.MainButton.onClick(() => { openModal(); });
+}
+
 function openModal() {
-    // Сбрасываем поля
     document.getElementById('sub-name').value = '';
     document.getElementById('sub-cost').value = '';
-    
-    // Ставим дату "сегодня" по умолчанию
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('sub-date').value = today;
-
     document.getElementById('add-modal').classList.remove('hidden');
-    
-    // Скрываем MainButton пока открыта модалка, чтобы не мешала
     tg.MainButton.hide();
 }
 
@@ -56,7 +109,6 @@ function closeModal() {
     tg.MainButton.show();
 }
 
-// Сохранение новой подписки
 function saveSubscription() {
     const name = document.getElementById('sub-name').value.trim();
     const cost = parseInt(document.getElementById('sub-cost').value);
@@ -67,13 +119,7 @@ function saveSubscription() {
         return;
     }
 
-    const newSub = {
-        id: Date.now(), // Уникальный ID
-        name: name,
-        cost: cost,
-        date: dateStr
-    };
-
+    const newSub = { id: Date.now(), name, cost, date: dateStr };
     subscriptions.push(newSub);
     saveData();
     closeModal();
@@ -81,7 +127,6 @@ function saveSubscription() {
     tg.HapticFeedback.notificationOccurred('success');
 }
 
-// Удаление
 function deleteSub(id) {
     tg.showConfirm("Удалить эту подписку?", (ok) => {
         if (ok) {
@@ -93,20 +138,17 @@ function deleteSub(id) {
     });
 }
 
-// Сохранение в облако
 function saveData() {
     tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
 }
 
-// Отрисовка списка
 function renderList() {
     const list = document.getElementById('subscriptions-list');
     const totalEl = document.getElementById('total-cost');
     const emptyMsg = document.getElementById('empty-msg');
 
-    list.innerHTML = ''; // Очистка
+    list.innerHTML = '';
 
-    // Считаем общую сумму
     const total = subscriptions.reduce((sum, sub) => sum + sub.cost, 0);
     totalEl.innerText = formatMoney(total) + ' ₽';
 
@@ -118,25 +160,20 @@ function renderList() {
         emptyMsg.style.display = 'none';
     }
 
-    // Сортируем: сначала те, у которых дата ближе
-    // Если дата прошла, считаем её как "в следующем месяце" для сортировки,
-    // но визуально покажем "Просрочено" или дату
     subscriptions.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     subscriptions.forEach(sub => {
         const daysLeft = getDaysLeft(sub.date);
         let statusBadge = '';
-        let dateDisplay = formatDate(sub.date);
 
         if (daysLeft < 0) {
-            // Дата прошла
-            statusBadge = `<span class="badge soon">Просрочено</span>`;
+            statusBadge = `<span class="badge overdue">Просрочено</span>`;
         } else if (daysLeft === 0) {
-            statusBadge = `<span class="badge soon">Сегодня</span>`;
+            statusBadge = `<span class="badge today">Сегодня</span>`;
         } else if (daysLeft <= 3) {
             statusBadge = `<span class="badge soon">Через ${daysLeft} дн.</span>`;
         } else {
-            statusBadge = `<span class="badge ok">Через ${daysLeft} дн.</span>`;
+            statusBadge = `<span class="badge normal">Через ${daysLeft} дн.</span>`;
         }
 
         const card = document.createElement('div');
@@ -144,39 +181,32 @@ function renderList() {
         card.innerHTML = `
             <div class="sub-info">
                 <div class="sub-name">${sub.name}</div>
-                <div class="sub-date">
-                    ${statusBadge} <span>${dateDisplay}</span>
-                </div>
+                <div class="sub-meta">${statusBadge} ${formatDate(sub.date)}</div>
             </div>
-            <div class="sub-cost">${formatMoney(sub.cost)} ₽</div>
-            <button class="delete-btn" onclick="deleteSub(${sub.id})">🗑</button>
+            <div class="sub-right">
+                <div class="sub-cost">${formatMoney(sub.cost)} ₽</div>
+                <button class="delete-btn" onclick="deleteSub(${sub.id})">🗑</button>
+            </div>
         `;
         list.appendChild(card);
     });
 }
 
-// Вспомогательные функции
-function formatMoney(num) {
-    return new Intl.NumberFormat('ru-RU').format(num);
+function getDaysLeft(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(dateStr);
+    target.setHours(0, 0, 0, 0);
+    return Math.round((target - today) / (1000 * 60 * 60 * 24));
 }
 
 function formatDate(dateStr) {
-    const options = { day: 'numeric', month: 'long' };
-    return new Date(dateStr).toLocaleDateString('ru-RU', options);
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 }
 
-function getDaysLeft(targetDateStr) {
-    const now = new Date();
-    // Сбрасываем время, чтобы считать только дни
-    now.setHours(0,0,0,0);
-    
-    const target = new Date(targetDateStr);
-    target.setHours(0,0,0,0);
-
-    const diffTime = target - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    return diffDays;
+function formatMoney(amount) {
+    return amount.toLocaleString('ru-RU');
 }
 
-// Запуск
 init();
