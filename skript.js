@@ -1,15 +1,22 @@
-const tg = window.Telegram.WebApp;
+// Защита: если открыто не в Telegram — показываем заглушку
+if (!window.Telegram || !window.Telegram.WebApp) {
+    document.getElementById('loader').style.display = 'none';
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#fff;font-size:16px;text-align:center;padding:20px;">Откройте приложение через Telegram бота @KudaUshli_bot</div>';
+    throw new Error('Not in Telegram WebApp');
+}
+
+var tg = window.Telegram.WebApp;
 tg.expand();
 
-const STORAGE_KEY  = 'user_subscriptions_v1';
-const CONS_KEY     = 'user_consumables_v1';
-const NOTIFIED_KEY = 'notified_dates_v1';
+var STORAGE_KEY  = 'user_subscriptions_v1';
+var CONS_KEY     = 'user_consumables_v1';
+var NOTIFIED_KEY = 'notified_dates_v1';
 
-let subscriptions = [];
-let consumables   = [];
-let currentTab    = 'subs';
+var subscriptions = [];
+var consumables   = [];
+var currentTab    = 'subs';
 
-async function init() {
+function init() {
     setupMainButton();
     tg.CloudStorage.getItem(STORAGE_KEY, function(err, val) {
         if (!err && val) subscriptions = JSON.parse(val);
@@ -85,34 +92,21 @@ function renderSubs() {
     var emptyEl = document.getElementById('empty-msg');
     list.innerHTML = '';
     var total = subscriptions.reduce(function(s, x) { return s + x.cost; }, 0);
-    totalEl.innerText = formatMoney(total) + ' \u20bd';
+    totalEl.innerText = formatMoney(total) + ' руб.';
     if (subscriptions.length === 0) {
-        list.appendChild(emptyEl);
-        emptyEl.style.display = 'block';
-        return;
+        list.appendChild(emptyEl); emptyEl.style.display = 'block'; return;
     }
     emptyEl.style.display = 'none';
-    var sorted = subscriptions.slice().sort(function(a, b) { return new Date(a.date) - new Date(b.date); });
-    sorted.forEach(function(sub) {
+    subscriptions.slice().sort(function(a,b){ return new Date(a.date)-new Date(b.date); }).forEach(function(sub) {
         var d = getDaysLeft(sub.date);
-        var badge = d < 0
-            ? '<span class="badge overdue">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043e</span>'
-            : d === 0
-            ? '<span class="badge today">\u0421\u0435\u0433\u043e\u0434\u043d\u044f</span>'
-            : d <= 3
-            ? '<span class="badge soon">\u0427\u0435\u0440\u0435\u0437 ' + d + ' \u0434\u043d.</span>'
-            : '<span class="badge normal">\u0427\u0435\u0440\u0435\u0437 ' + d + ' \u0434\u043d.</span>';
+        var label = d < 0 ? 'Просрочено' : d === 0 ? 'Сегодня' : 'Через ' + d + ' дн.';
+        var cls   = d < 0 ? 'overdue' : d === 0 ? 'today' : d <= 3 ? 'soon' : 'normal';
         var card = document.createElement('div');
         card.className = 'sub-card';
-        card.innerHTML =
-            '<div class="sub-info">' +
-                '<div class="sub-name">' + sub.name + '</div>' +
-                '<div class="sub-meta">' + badge + ' ' + formatDate(sub.date) + '</div>' +
-            '</div>' +
-            '<div class="sub-right">' +
-                '<div class="sub-cost">' + formatMoney(sub.cost) + ' \u20bd</div>' +
-                '<button class="delete-btn" onclick="deleteSub(' + sub.id + ')">\uD83D\uDDD1</button>' +
-            '</div>';
+        card.innerHTML = '<div class="sub-info"><div class="sub-name">'+sub.name+'</div>'
+            +'<div class="sub-meta"><span class="badge '+cls+'">'+label+'</span> '+formatDate(sub.date)+'</div></div>'
+            +'<div class="sub-right"><div class="sub-cost">'+formatMoney(sub.cost)+' руб.</div>'
+            +'<button class="delete-btn" onclick="deleteSub('+sub.id+')">&#x1F5D1;</button></div>';
         list.appendChild(card);
     });
 }
@@ -121,7 +115,7 @@ function openConsModal() {
     document.getElementById('cons-name').value = '';
     document.getElementById('cons-days').value = '';
     document.getElementById('cons-start-date').value = new Date().toISOString().split('T')[0];
-    document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('selected'); });
+    document.querySelectorAll('.preset-btn').forEach(function(b){ b.classList.remove('selected'); });
     document.getElementById('add-cons-modal').classList.remove('hidden');
     tg.MainButton.hide();
 }
@@ -131,7 +125,7 @@ function closeConsModal() {
 }
 function setDays(n) {
     document.getElementById('cons-days').value = n;
-    document.querySelectorAll('.preset-btn').forEach(function(b) {
+    document.querySelectorAll('.preset-btn').forEach(function(b){
         b.classList.toggle('selected', parseInt(b.textContent) === n);
     });
 }
@@ -149,14 +143,14 @@ function saveConsumable() {
 function deleteCons(id) {
     tg.showConfirm('Удалить расходник?', function(ok) {
         if (!ok) return;
-        consumables = consumables.filter(function(c) { return c.id !== id; });
+        consumables = consumables.filter(function(c){ return c.id !== id; });
         tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
         renderConsumables();
         tg.HapticFeedback.impactOccurred('medium');
     });
 }
 function refreshCons(id) {
-    var c = consumables.find(function(c) { return c.id === id; });
+    var c = consumables.find(function(c){ return c.id === id; });
     if (!c) return;
     c.startDate = new Date().toISOString().split('T')[0];
     tg.CloudStorage.setItem(CONS_KEY, JSON.stringify(consumables));
@@ -168,47 +162,33 @@ function renderConsumables() {
     var countEl = document.getElementById('consumables-count');
     var emptyEl = document.getElementById('empty-cons-msg');
     list.innerHTML = '';
-    var active = consumables.filter(function(c) { return getConsDaysLeft(c) >= 0; }).length;
-    countEl.innerText = active + ' \u0430\u043a\u0442\u0438\u0432\u043d\u044b\u0445';
+    var active = consumables.filter(function(c){ return getConsDaysLeft(c) >= 0; }).length;
+    countEl.innerText = active + ' активных';
     if (consumables.length === 0) {
-        list.appendChild(emptyEl);
-        emptyEl.style.display = 'block';
-        return;
+        list.appendChild(emptyEl); emptyEl.style.display = 'block'; return;
     }
     emptyEl.style.display = 'none';
-    var sorted = consumables.slice().sort(function(a, b) { return getConsDaysLeft(a) - getConsDaysLeft(b); });
-    sorted.forEach(function(c) {
+    consumables.slice().sort(function(a,b){ return getConsDaysLeft(a)-getConsDaysLeft(b); }).forEach(function(c) {
         var dLeft    = getConsDaysLeft(c);
         var pct      = Math.max(0, Math.min(100, Math.round((dLeft / c.days) * 100)));
         var barColor = dLeft < 0 ? '#ff3b30' : dLeft <= 3 ? '#ff9500' : '#34c759';
-        var badge = dLeft < 0
-            ? '<span class="badge overdue">\u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043e</span>'
-            : dLeft === 0
-            ? '<span class="badge today">\u0421\u0435\u0433\u043e\u0434\u043d\u044f</span>'
-            : dLeft <= 3
-            ? '<span class="badge soon">\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + dLeft + ' \u0434\u043d.</span>'
-            : '<span class="badge normal">\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + dLeft + ' \u0434\u043d.</span>';
+        var label = dLeft < 0 ? 'Просрочено' : dLeft === 0 ? 'Сегодня' : 'Осталось ' + dLeft + ' дн.';
+        var cls   = dLeft < 0 ? 'overdue' : dLeft === 0 ? 'today' : dLeft <= 3 ? 'soon' : 'normal';
         var endDate = new Date(c.startDate);
         endDate.setDate(endDate.getDate() + c.days);
         var card = document.createElement('div');
         card.className = 'sub-card';
         card.style.flexDirection = 'column';
         card.style.alignItems = 'stretch';
-        card.innerHTML =
-            '<div style="display:flex;justify-content:space-between;align-items:center">' +
-                '<div class="sub-info">' +
-                    '<div class="sub-name">' + c.name + '</div>' +
-                    '<div class="sub-meta">' + badge + ' \u0434\u043e ' + formatDate(endDate.toISOString().split('T')[0]) + '</div>' +
-                '</div>' +
-                '<div style="display:flex;align-items:center;gap:4px">' +
-                    '<div style="font-size:13px;color:var(--text-secondary);text-align:right">' + c.days + ' \u0434\u043d.<br><span style="font-size:11px">' + pct + '%</span></div>' +
-                    '<button class="refresh-btn" onclick="refreshCons(' + c.id + ')" title="\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043b \u0441\u0435\u0433\u043e\u0434\u043d\u044f">\u267b\uFE0F</button>' +
-                    '<button class="delete-btn" onclick="deleteCons(' + c.id + ')">\uD83D\uDDD1</button>' +
-                '</div>' +
-            '</div>' +
-            '<div class="cons-progress-wrap">' +
-                '<div class="cons-progress-bar" style="width:' + pct + '%;background:' + barColor + '"></div>' +
-            '</div>';
+        card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center">'
+            +'<div class="sub-info"><div class="sub-name">'+c.name+'</div>'
+            +'<div class="sub-meta"><span class="badge '+cls+'">'+label+'</span> до '+formatDate(endDate.toISOString().split('T')[0])+'</div></div>'
+            +'<div style="display:flex;align-items:center;gap:4px">'
+            +'<div style="font-size:13px;color:var(--text-secondary);text-align:right">'+c.days+' дн.<br><span style="font-size:11px">'+pct+'%</span></div>'
+            +'<button class="refresh-btn" onclick="refreshCons('+c.id+')">&#x267B;</button>'
+            +'<button class="delete-btn" onclick="deleteCons('+c.id+')">&#x1F5D1;</button>'
+            +'</div></div>'
+            +'<div class="cons-progress-wrap"><div class="cons-progress-bar" style="width:'+pct+'%;background:'+barColor+'"></div></div>';
         list.appendChild(card);
     });
 }
@@ -217,8 +197,7 @@ function getConsDaysLeft(c) {
     var end = new Date(c.startDate);
     end.setDate(end.getDate() + c.days);
     end.setHours(0,0,0,0);
-    var today = new Date();
-    today.setHours(0,0,0,0);
+    var today = new Date(); today.setHours(0,0,0,0);
     return Math.round((end - today) / 86400000);
 }
 
@@ -227,45 +206,40 @@ function checkAndNotify() {
     tg.CloudStorage.getItem(NOTIFIED_KEY, function(err, val) {
         var notified = (!err && val) ? JSON.parse(val) : {};
         var messages = [];
-
-        var subOverdue = [], subUrgent = [], subSoon1 = [], subSoon3 = [];
+        var subOverdue=[], subUrgent=[], subSoon1=[], subSoon3=[];
         subscriptions.forEach(function(s) {
-            var nid = 'sub_' + s.id + '_' + todayStr;
+            var nid = 'sub_'+s.id+'_'+todayStr;
             if (notified[nid]) return;
             var d = getDaysLeft(s.date);
-            if      (d < 0)  subOverdue.push(s);
+            if (d < 0) subOverdue.push(s);
             else if (d === 0) subUrgent.push(s);
             else if (d === 1) subSoon1.push(s);
             else if (d === 3) subSoon3.push(s);
         });
-        if (subOverdue.length) messages.push('\uD83D\uDD34 \u041f\u0440\u043e\u0441\u0440\u043e\u0447\u0435\u043d\u043d\u044b\u0435 \u043f\u043e\u0434\u043f\u0438\u0441\u043a\u0438:\n' + subOverdue.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
-        if (subUrgent.length)  messages.push('\u26A1\uFE0F \u0421\u0435\u0433\u043e\u0434\u043d\u044f \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subUrgent.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
-        if (subSoon1.length)   messages.push('\u23F0 \u0417\u0430\u0432\u0442\u0440\u0430 \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subSoon1.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
-        if (subSoon3.length)   messages.push('\uD83D\uDCC5 \u0427\u0435\u0440\u0435\u0437 3 \u0434\u043d\u044f \u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435:\n' + subSoon3.map(function(s){ return '\u2022 ' + s.name + ' \u2014 ' + s.cost + ' \u20bd'; }).join('\n'));
-
-        var consOverdue = [], consUrgent = [], consSoon = [];
+        if (subOverdue.length) messages.push('🔴 Просроченные подписки:\n'+subOverdue.map(function(s){return '• '+s.name+' — '+s.cost+' руб.';}).join('\n'));
+        if (subUrgent.length)  messages.push('⚡️ Сегодня списание:\n'+subUrgent.map(function(s){return '• '+s.name+' — '+s.cost+' руб.';}).join('\n'));
+        if (subSoon1.length)   messages.push('⏰ Завтра списание:\n'+subSoon1.map(function(s){return '• '+s.name+' — '+s.cost+' руб.';}).join('\n'));
+        if (subSoon3.length)   messages.push('📅 Через 3 дня:\n'+subSoon3.map(function(s){return '• '+s.name+' — '+s.cost+' руб.';}).join('\n'));
+        var consOverdue=[], consUrgent=[], consSoon=[];
         consumables.forEach(function(c) {
-            var nid = 'cons_' + c.id + '_' + todayStr;
+            var nid = 'cons_'+c.id+'_'+todayStr;
             if (notified[nid]) return;
             var d = getConsDaysLeft(c);
-            if      (d < 0)  consOverdue.push(c);
+            if (d < 0) consOverdue.push(c);
             else if (d === 0) consUrgent.push(c);
-            else if (d <= 3)  consSoon.push(c);
+            else if (d <= 3) consSoon.push(c);
         });
-        if (consOverdue.length) messages.push('\uD83D\uDD34 \u0420\u0430\u0441\u0445\u043e\u0434\u043d\u0438\u043a\u0438 \u0437\u0430\u043a\u043e\u043d\u0447\u0438\u043b\u0438\u0441\u044c:\n' + consOverdue.map(function(c){ return '\u2022 ' + c.name; }).join('\n'));
-        if (consUrgent.length)  messages.push('\u26A1\uFE0F \u0417\u0430\u043a\u0430\u043d\u0447\u0438\u0432\u0430\u044e\u0442\u0441\u044f \u0441\u0435\u0433\u043e\u0434\u043d\u044f:\n' + consUrgent.map(function(c){ return '\u2022 ' + c.name; }).join('\n'));
-        if (consSoon.length)    messages.push('\uD83D\uDCE6 \u0421\u043a\u043e\u0440\u043e \u0437\u0430\u043a\u043e\u043d\u0447\u0430\u0442\u0441\u044f:\n' + consSoon.map(function(c){ return '\u2022 ' + c.name + ' \u2014 \u043e\u0441\u0442\u0430\u043b\u043e\u0441\u044c ' + getConsDaysLeft(c) + ' \u0434\u043d.'; }).join('\n'));
-
+        if (consOverdue.length) messages.push('🔴 Расходники закончились:\n'+consOverdue.map(function(c){return '• '+c.name;}).join('\n'));
+        if (consUrgent.length)  messages.push('⚡️ Заканчиваются сегодня:\n'+consUrgent.map(function(c){return '• '+c.name;}).join('\n'));
+        if (consSoon.length)    messages.push('📦 Скоро закончатся:\n'+consSoon.map(function(c){return '• '+c.name+' — '+getConsDaysLeft(c)+' дн.';}).join('\n'));
         if (messages.length === 0) return;
-
         showNextAlert(messages, 0, function() {
             var allShown = subOverdue.concat(subUrgent, subSoon1, subSoon3, consOverdue, consUrgent, consSoon);
             allShown.forEach(function(item) {
                 var prefix = (item.cost !== undefined) ? 'sub' : 'cons';
-                notified[prefix + '_' + item.id + '_' + todayStr] = true;
+                notified[prefix+'_'+item.id+'_'+todayStr] = true;
             });
-            var cutoff = new Date();
-            cutoff.setDate(cutoff.getDate() - 7);
+            var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7);
             Object.keys(notified).forEach(function(k) {
                 var d = k.split('_').pop();
                 if (new Date(d) < cutoff) delete notified[k];
@@ -277,7 +251,7 @@ function checkAndNotify() {
 
 function showNextAlert(msgs, i, done) {
     if (i >= msgs.length) { done(); return; }
-    tg.showAlert(msgs[i], function() { showNextAlert(msgs, i + 1, done); });
+    tg.showAlert(msgs[i], function() { showNextAlert(msgs, i+1, done); });
 }
 
 function getDaysLeft(dateStr) {
