@@ -6,6 +6,7 @@
     --accent-blue: #007aff;
     --accent-red: #ff3b30;
     --accent-green: #34c759;
+    --accent-orange: #ff9500;
     --radius: 12px;
 }
 
@@ -17,12 +18,11 @@
 }
 
 body {
-    margin: 0;
-    padding: 0;
+    margin: 0; padding: 0;
     background-color: var(--bg-color);
     color: var(--text-primary);
     min-height: 100vh;
-    padding-bottom: 80px; /* Место под кнопку MainButton */
+    padding-bottom: 80px;
 }
 
 .hidden { display: none !important; }
@@ -41,17 +41,39 @@ body {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Вкладки */
+.tabs {
+    display: flex;
+    padding: 12px 16px 0;
+    gap: 8px;
+    position: sticky; top: 0;
+    background: var(--bg-color);
+    z-index: 20;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.tab-btn {
+    flex: 1;
+    background: rgba(255,255,255,0.07);
+    border: none; color: var(--text-secondary);
+    padding: 10px; border-radius: 10px 10px 0 0;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+}
+.tab-btn.active {
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-blue);
+}
+
 /* Header */
 .header-summary {
     text-align: center;
     padding: 20px 0;
     background: linear-gradient(180deg, rgba(28,28,30,0.5) 0%, transparent 100%);
-    position: sticky; top: 0;
     backdrop-filter: blur(10px);
-    z-index: 10;
 }
 .summary-label { color: var(--text-secondary); font-size: 14px; margin: 0; }
-#total-cost { margin: 5px 0 0 0; font-size: 36px; font-weight: 800; }
+#total-cost, #consumables-count { margin: 5px 0 0 0; font-size: 36px; font-weight: 800; }
 
 /* List */
 .list-container { padding: 16px; }
@@ -61,24 +83,21 @@ body {
     margin-top: 50px; line-height: 1.5; opacity: 0.6;
 }
 
+/* Карточки */
 .sub-card {
     background: var(--card-bg);
     border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
+    padding: 16px; margin-bottom: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    position: relative; overflow: hidden;
     animation: slideIn 0.3s ease;
 }
-
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 .sub-info { flex: 1; }
 .sub-name { font-weight: 600; font-size: 17px; margin-bottom: 4px; }
-.sub-date { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.sub-meta { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.sub-right { display: flex; align-items: center; gap: 6px; }
 
 .sub-cost {
     font-size: 18px; font-weight: 700;
@@ -87,37 +106,67 @@ body {
     min-width: 80px; text-align: center;
 }
 
-/* Badge дней (Скоро / Сегодня) */
+/* Прогресс-бар для расходников */
+.cons-progress-wrap {
+    margin-top: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px; height: 4px; overflow: hidden;
+}
+.cons-progress-bar {
+    height: 100%; border-radius: 4px;
+    transition: width 0.3s;
+}
+
+/* Кнопка "Обновить" для расходников */
+.refresh-btn {
+    background: rgba(52,199,89,0.15); border: none;
+    color: var(--accent-green); font-size: 18px;
+    padding: 8px; border-radius: 8px;
+    cursor: pointer; margin-left: 4px;
+}
+
+/* Badge */
 .badge {
     font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;
 }
-.badge.soon { background: rgba(255, 59, 48, 0.2); color: var(--accent-red); }
-.badge.ok { background: rgba(52, 199, 89, 0.2); color: var(--accent-green); }
+.badge.overdue { background: rgba(255,59,48,0.2); color: var(--accent-red); }
+.badge.today   { background: rgba(255,149,0,0.2); color: var(--accent-orange); }
+.badge.soon    { background: rgba(255,149,0,0.15); color: var(--accent-orange); }
+.badge.normal  { background: rgba(52,199,89,0.15); color: var(--accent-green); }
 
 /* Кнопка удаления */
 .delete-btn {
     background: none; border: none; color: var(--text-secondary);
-    font-size: 20px; padding: 10px; margin-left: 10px;
+    font-size: 20px; padding: 10px; margin-left: 4px;
     cursor: pointer; opacity: 0.5;
+}
+
+/* Пресеты дней */
+.preset-buttons {
+    display: flex; gap: 8px; flex-wrap: wrap;
+}
+.preset-btn {
+    background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+    padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+}
+.preset-btn:active, .preset-btn.selected {
+    background: var(--accent-blue); color: white;
 }
 
 /* Modal */
 .modal {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.8);
-    display: flex; justify-content: center; align-items: flex-end; /* Снизу экрана */
+    display: flex; justify-content: center; align-items: flex-end;
     z-index: 2000;
-    animation: fadeIn 0.2s;
 }
 .modal-content {
-    background: #2c2c2e;
-    width: 100%;
+    background: #2c2c2e; width: 100%;
     border-radius: 20px 20px 0 0;
-    padding: 24px;
-    padding-bottom: 40px;
+    padding: 24px; padding-bottom: 40px;
     animation: slideUpModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
 @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
 .modal h2 { margin-top: 0; margin-bottom: 20px; text-align: center; }
