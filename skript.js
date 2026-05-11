@@ -237,4 +237,63 @@ function checkAndNotify() {
             if      (d < 0)  subOverdue.push(s);
             else if (d === 0) subUrgent.push(s);
             else if (d === 1) subSoon1.push(s);
-            else if (d ==
+            else if (d === 3) subSoon3.push(s);
+        });
+        if (subOverdue.length) messages.push(`🔴 Просроченные подписки:\n${subOverdue.map(s=>`• ${s.name} — ${s.cost} ₽`).join('\n')}`);
+        if (subUrgent.length)  messages.push(`⚡️ Сегодня списание:\n${subUrgent.map(s=>`• ${s.name} — ${s.cost} ₽`).join('\n')}`);
+        if (subSoon1.length)   messages.push(`⏰ Завтра списание:\n${subSoon1.map(s=>`• ${s.name} — ${s.cost} ₽`).join('\n')}`);
+        if (subSoon3.length)   messages.push(`📅 Через 3 дня списание:\n${subSoon3.map(s=>`• ${s.name} — ${s.cost} ₽`).join('\n')}`);
+
+        // Расходники
+        const consOverdue = [], consUrgent = [], consSoon = [];
+        consumables.forEach(c => {
+            const nid = `cons_${c.id}_${todayStr}`;
+            if (notified[nid]) return;
+            const d = getConsDaysLeft(c);
+            if      (d < 0)  consOverdue.push(c);
+            else if (d === 0) consUrgent.push(c);
+            else if (d <= 3)  consSoon.push(c);
+        });
+        if (consOverdue.length) messages.push(`🔴 Расходники закончились:\n${consOverdue.map(c=>`• ${c.name}`).join('\n')}`);
+        if (consUrgent.length)  messages.push(`⚡️ Расходники заканчиваются сегодня:\n${consUrgent.map(c=>`• ${c.name}`).join('\n')}`);
+        if (consSoon.length)    messages.push(`📦 Скоро закончатся (≤3 дн.):\n${consSoon.map(c=>`• ${c.name} — осталось ${getConsDaysLeft(c)} дн.`).join('\n')}`);
+
+        if (messages.length === 0) return;
+
+        showNextAlert(messages, 0, () => {
+            const allShown = [
+                ...subOverdue, ...subUrgent, ...subSoon1, ...subSoon3,
+                ...consOverdue, ...consUrgent, ...consSoon
+            ];
+            allShown.forEach(item => {
+                const prefix = item.cost !== undefined ? 'sub' : 'cons';
+                notified[`${prefix}_${item.id}_${todayStr}`] = true;
+            });
+            // Чистим старше 7 дней
+            const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7);
+            Object.keys(notified).forEach(k => {
+                const d = k.split('_').pop();
+                if (new Date(d) < cutoff) delete notified[k];
+            });
+            tg.CloudStorage.setItem(NOTIFIED_KEY, JSON.stringify(notified));
+        });
+    });
+}
+
+function showNextAlert(msgs, i, done) {
+    if (i >= msgs.length) { done(); return; }
+    tg.showAlert(msgs[i], () => showNextAlert(msgs, i + 1, done));
+}
+
+// ── HELPERS ───────────────────────────────────────────
+function getDaysLeft(dateStr) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const target = new Date(dateStr); target.setHours(0,0,0,0);
+    return Math.round((target - today) / 86400000);
+}
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+function formatMoney(n) { return n.toLocaleString('ru-RU'); }
+
+init();
