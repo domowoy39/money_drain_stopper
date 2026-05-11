@@ -2,60 +2,105 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Мои Подписки</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вот Куда</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- Экран загрузки -->
-    <div id="loader">
-        <div class="spinner"></div>
+<!-- Loader -->
+<div id="loader"><div class="spinner"></div></div>
+
+<!-- App -->
+<div id="main-app" class="hidden">
+
+    <!-- Вкладки -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('subs')">💳 Подписки</button>
+        <button class="tab-btn" onclick="switchTab('consumables')">🔄 Расходники</button>
     </div>
 
-    <!-- Главный экран -->
-    <div id="main-app" class="hidden">
+    <!-- ===== ВКЛАДКА ПОДПИСКИ ===== -->
+    <div id="tab-subs">
         <div class="header-summary">
             <p class="summary-label">Расход в месяц</p>
             <h1 id="total-cost">0 ₽</h1>
         </div>
-
-        <div id="subscriptions-list" class="list-container">
-            <!-- Сюда JS добавит карточки -->
-            <div class="empty-state" id="empty-msg">
-                Нет активных подписок.<br>Добавьте первую! 👇
+        <div class="list-container">
+            <div id="subscriptions-list">
+                <div id="empty-msg" class="empty-state">Нет активных подписок.<br>Добавьте первую! 👇</div>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно добавления -->
-    <div id="add-modal" class="modal hidden">
-        <div class="modal-content">
-            <h2>Новая подписка</h2>
-            
-            <div class="input-group">
-                <label>Название сервиса</label>
-                <input type="text" id="sub-name" placeholder="Например: Яндекс Плюс">
-            </div>
-
-            <div class="input-group">
-                <label>Стоимость (₽)</label>
-                <input type="number" id="sub-cost" placeholder="299">
-            </div>
-
-            <div class="input-group">
-                <label>Дата следующего списания</label>
-                <input type="date" id="sub-date">
-            </div>
-
-            <div class="modal-buttons">
-                <button class="btn-cancel" onclick="closeModal()">Отмена</button>
-                <button class="btn-save" onclick="saveSubscription()">Сохранить</button>
+    <!-- ===== ВКЛАДКА РАСХОДНИКИ ===== -->
+    <div id="tab-consumables" class="hidden">
+        <div class="header-summary">
+            <p class="summary-label">Расходники</p>
+            <h1 id="consumables-count">0 активных</h1>
+        </div>
+        <div class="list-container">
+            <div id="consumables-list">
+                <div id="empty-cons-msg" class="empty-state">Нет расходников.<br>Добавьте первый! 👇</div>
             </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+</div>
+
+<!-- Модалка: добавить подписку -->
+<div id="add-modal" class="modal hidden">
+    <div class="modal-content">
+        <h2>Новая подписка</h2>
+        <div class="input-group">
+            <label>Название сервиса</label>
+            <input type="text" id="sub-name" placeholder="Netflix, Spotify...">
+        </div>
+        <div class="input-group">
+            <label>Стоимость (₽)</label>
+            <input type="number" id="sub-cost" placeholder="299">
+        </div>
+        <div class="input-group">
+            <label>Дата следующего списания</label>
+            <input type="date" id="sub-date">
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+            <button class="btn-save" onclick="saveSubscription()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модалка: добавить расходник -->
+<div id="add-cons-modal" class="modal hidden">
+    <div class="modal-content">
+        <h2>Новый расходник</h2>
+        <div class="input-group">
+            <label>Название</label>
+            <input type="text" id="cons-name" placeholder="Зубная паста, фильтр воды...">
+        </div>
+        <div class="input-group">
+            <label>Дата последнего использования / замены</label>
+            <input type="date" id="cons-start-date">
+        </div>
+        <div class="input-group">
+            <label>Срок использования (дней)</label>
+            <div class="preset-buttons">
+                <button class="preset-btn" onclick="setDays(7)">7</button>
+                <button class="preset-btn" onclick="setDays(14)">14</button>
+                <button class="preset-btn" onclick="setDays(30)">30</button>
+                <button class="preset-btn" onclick="setDays(60)">60</button>
+                <button class="preset-btn" onclick="setDays(90)">90</button>
+            </div>
+            <input type="number" id="cons-days" placeholder="30" style="margin-top:8px">
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-cancel" onclick="closeConsModal()">Отмена</button>
+            <button class="btn-save" onclick="saveConsumable()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<script src="skript.js"></script>
 </body>
 </html>
